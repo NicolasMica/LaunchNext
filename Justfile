@@ -64,3 +64,20 @@ open:
         exit 1
     fi
     open "$app"
+
+# Reveal the built app in Finder (config: Debug or Release)
+reveal config="Debug":
+    #!/usr/bin/env bash
+    app=$(find ~/Library/Developer/Xcode/DerivedData/LaunchNext-*/Build/Products/{{config}}/LaunchNext.app -maxdepth 0 2>/dev/null | head -1)
+    if [ -z "$app" ]; then
+        echo "Error: App not found. Run 'just build' first."
+        exit 1
+    fi
+    open -R "$app"
+
+# Clean build universal release and reveal in Finder
+distribute:
+    just clean
+    just setup
+    just build-universal
+    just reveal Release
