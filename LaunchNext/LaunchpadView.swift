@@ -1057,6 +1057,7 @@ struct LaunchpadView: View {
         AppDelegate.shared?.hideWindow(force: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NSWorkspace.shared.open(app.url)
+            appStore.makeAppFullscreenIfEnabled(appURL: app.url)
         }
     }
     

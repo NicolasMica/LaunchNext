@@ -418,6 +418,9 @@ enum LocalizationKey: String {
     case updaterMissingBinary
     case updaterNotExecutable
     case updaterHoldPrompt
+    case autoFullscreenTitle
+    case autoFullscreenDescription
+    case autoFullscreenAccessibilityRequired
 }
 
 final class LocalizationManager {
@@ -630,7 +633,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "Failed to start updater (%@).",
                 .updaterMissingBinary: "Updater binary not found in the app bundle.",
                 .updaterNotExecutable: "Updater binary is not executable.",
-            .updaterHoldPrompt: "Press Enter to close this window. LaunchNext will reopen automatically."
+            .updaterHoldPrompt: "Press Enter to close this window. LaunchNext will reopen automatically.",
+            .autoFullscreenTitle: "Auto Fullscreen",
+            .autoFullscreenDescription: "Launched apps enter fullscreen automatically.",
+            .autoFullscreenAccessibilityRequired: "Accessibility permission is required to fullscreen other apps. Please grant it in System Settings."
         ],
         .portugueseBrazil: [
             .noAppsFound: "Nenhum app encontrado",
@@ -814,6 +820,9 @@ final class LocalizationManager {
             .updaterMissingBinary: "Binário do atualizador não encontrado no bundle.",
             .updaterNotExecutable: "O atualizador não é executável.",
             .updaterHoldPrompt: "Pressione Enter para fechar esta janela. LaunchNext será aberto novamente automaticamente.",
+            .autoFullscreenTitle: "Tela Cheia Automática",
+            .autoFullscreenDescription: "Apps abertos entram em tela cheia automaticamente.",
+            .autoFullscreenAccessibilityRequired: "É necessária permissão de acessibilidade para colocar outros apps em tela cheia. Conceda-a em Ajustes do Sistema.",
 
             .settingsSectionGeneral: "Geral",
             .settingsSectionAppSources: "Fontes de apps",
@@ -1231,7 +1240,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "无法启动更新器（%@）。",
                 .updaterMissingBinary: "应用包内未找到更新器。",
                 .updaterNotExecutable: "更新器文件不可执行。",
-                .updaterHoldPrompt: "更新完成后，按回车键关闭窗口，LaunchNext 会自动重新打开。"
+                .updaterHoldPrompt: "更新完成后，按回车键关闭窗口，LaunchNext 会自动重新打开。",
+                .autoFullscreenTitle: "自动全屏",
+                .autoFullscreenDescription: "启动的应用自动进入全屏模式。",
+                .autoFullscreenAccessibilityRequired: "需要辅助功能权限才能将其他应用设为全屏。请在系统设置中授权。"
             ],
             .japanese: [
                 .noAppsFound: "アプリが見つかりません",
@@ -1397,7 +1409,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "アップデーターの起動に失敗しました（%@）。",
                 .updaterMissingBinary: "アプリ内にアップデーターが見つかりません。",
                 .updaterNotExecutable: "アップデーターが実行可能ではありません。",
-                .updaterHoldPrompt: "アップデート後は Enter キーを押してこのウィンドウを閉じてください。LaunchNext は自動的に再起動します。"
+                .updaterHoldPrompt: "アップデート後は Enter キーを押してこのウィンドウを閉じてください。LaunchNext は自動的に再起動します。",
+                .autoFullscreenTitle: "自動フルスクリーン",
+                .autoFullscreenDescription: "起動したアプリが自動的にフルスクリーンになります。",
+                .autoFullscreenAccessibilityRequired: "他のアプリをフルスクリーンにするには、アクセシビリティの許可が必要です。システム設定で許可してください。"
             ],
             .korean: [
                 .noAppsFound: "앱을 찾을 수 없어요",
@@ -1563,7 +1578,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "업데이터를 시작하지 못했어요(%@).",
                 .updaterMissingBinary: "앱 번들에서 업데이터를 찾을 수 없어요",
                 .updaterNotExecutable: "업데이터 파일을 실행할 수 없어요",
-                .updaterHoldPrompt: "업데이트가 끝나면 Enter 키를 눌러 창을 닫으세요. LaunchNext가 자동으로 다시 열려요."
+                .updaterHoldPrompt: "업데이트가 끝나면 Enter 키를 눌러 창을 닫으세요. LaunchNext가 자동으로 다시 열려요.",
+                .autoFullscreenTitle: "자동 전체 화면",
+                .autoFullscreenDescription: "실행한 앱이 자동으로 전체 화면으로 전환돼요.",
+                .autoFullscreenAccessibilityRequired: "다른 앱을 전체 화면으로 전환하려면 손쉬운 사용 권한이 필요해요. 시스템 설정에서 허용해 주세요."
             ],
             .french: [
                 .noAppsFound: "Aucune application trouvée",
@@ -1725,7 +1743,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "Échec du lancement du programme de mise à jour (%@).",
                 .updaterMissingBinary: "Programme de mise à jour introuvable dans le paquet de l’application.",
                 .updaterNotExecutable: "Le programme de mise à jour n’est pas exécutable.",
-                .updaterHoldPrompt: "Appuyez sur Entrée pour fermer cette fenêtre. LaunchNext va se relancer automatiquement."
+                .updaterHoldPrompt: "Appuyez sur Entrée pour fermer cette fenêtre. LaunchNext va se relancer automatiquement.",
+                .autoFullscreenTitle: "Plein écran automatique",
+                .autoFullscreenDescription: "Les apps lancées passent automatiquement en plein écran.",
+                .autoFullscreenAccessibilityRequired: "L'autorisation d'accessibilité est requise pour mettre d'autres apps en plein écran. Accordez-la dans les Réglages Système."
             ],
             .spanish: [
                 .noAppsFound: "No se encontraron apps",
@@ -1887,7 +1908,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "No se pudo iniciar el actualizador (%@).",
                 .updaterMissingBinary: "No se encontró el actualizador dentro del paquete de la app.",
                 .updaterNotExecutable: "El actualizador no es ejecutable.",
-                .updaterHoldPrompt: "Cuando termine la actualización, pulse Intro para cerrar esta ventana. LaunchNext se abrirá automáticamente."
+                .updaterHoldPrompt: "Cuando termine la actualización, pulse Intro para cerrar esta ventana. LaunchNext se abrirá automáticamente.",
+                .autoFullscreenTitle: "Pantalla completa automática",
+                .autoFullscreenDescription: "Las apps abiertas entran automáticamente en pantalla completa.",
+                .autoFullscreenAccessibilityRequired: "Se requiere permiso de accesibilidad para poner otras apps en pantalla completa. Concédalo en Ajustes del Sistema."
             ],
             .italian: [
                 .noAppsFound: "Nessuna app trovata",
@@ -2066,7 +2090,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "Impossibile avviare l’updater (%@).",
                 .updaterMissingBinary: "Binario dell’updater non trovato nel bundle dell’app.",
                 .updaterNotExecutable: "Il binario dell’updater non è eseguibile.",
-                .updaterHoldPrompt: "Premi Invio per chiudere questa finestra. LaunchNext si riaprirà automaticamente."
+                .updaterHoldPrompt: "Premi Invio per chiudere questa finestra. LaunchNext si riaprirà automaticamente.",
+                .autoFullscreenTitle: "Schermo intero automatico",
+                .autoFullscreenDescription: "Le app avviate passano automaticamente a schermo intero.",
+                .autoFullscreenAccessibilityRequired: "È necessaria l'autorizzazione di accessibilità per mettere altre app a schermo intero. Concedila nelle Impostazioni di Sistema."
             ],
             .czech: [
                 .noAppsFound: "Nebyla nalezena žádná aplikace",
@@ -2229,7 +2256,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "Nepodařilo se spustit aktualizátor (%@).",
                 .updaterMissingBinary: "Binární soubor aktualizátoru nebyl nalezen v balíčku aplikace.",
                 .updaterNotExecutable: "Binární soubor aktualizátoru není spustitelný.",
-                .updaterHoldPrompt: "Stiskněte Enter pro zavření tohoto okna. LaunchNext se automaticky znovu otevře."
+                .updaterHoldPrompt: "Stiskněte Enter pro zavření tohoto okna. LaunchNext se automaticky znovu otevře.",
+                .autoFullscreenTitle: "Automatický celý displej",
+                .autoFullscreenDescription: "Spuštěné aplikace automaticky přejdou na celý displej.",
+                .autoFullscreenAccessibilityRequired: "Pro přepnutí jiných aplikací na celý displej je vyžadováno oprávnění přístupnosti. Udělte ho v Nastavení systému."
             ],
             .german: [
                 .noAppsFound: "Keine Apps gefunden",
@@ -2392,7 +2422,10 @@ final class LocalizationManager {
                 .updaterLaunchFailed: "Updater konnte nicht gestartet werden (%@).",
                 .updaterMissingBinary: "Updater wurde im App-Paket nicht gefunden.",
                 .updaterNotExecutable: "Updater-Datei ist nicht ausführbar.",
-                .updaterHoldPrompt: "Nach dem Update Enter drücken, um dieses Fenster zu schließen. LaunchNext wird automatisch wieder geöffnet."
+                .updaterHoldPrompt: "Nach dem Update Enter drücken, um dieses Fenster zu schließen. LaunchNext wird automatisch wieder geöffnet.",
+                .autoFullscreenTitle: "Automatischer Vollbildmodus",
+                .autoFullscreenDescription: "Gestartete Apps wechseln automatisch in den Vollbildmodus.",
+                .autoFullscreenAccessibilityRequired: "Zum Vollbildmodus anderer Apps wird die Bedienungshilfen-Berechtigung benötigt. Bitte in den Systemeinstellungen erlauben."
             ],
             .russian: [
                 .noAppsFound: "Приложения не найдены",
@@ -4523,7 +4556,10 @@ final class LocalizationManager {
             .commandLineInterfaceRemoveCommandDone: "Đã gỡ tên đã ghi.",
             .commandLineInterfaceRemoveCommandMissing: "Không tìm thấy tên đã ghi do LaunchNext quản lý.",
             .commandLineInterfaceRemoveCommandInfoTitle: "Nút này sẽ làm gì",
-            .commandLineInterfaceRemoveCommandInfoBody: "Nút này chỉ gỡ các LaunchNext CLI shim do ứng dụng quản lý (không xóa file không liên quan):\nrm /opt/homebrew/bin/launchnext\nrm /usr/local/bin/launchnext\nrm ~/.local/bin/launchnext\nrm ~/bin/launchnext\nSau đó nó gỡ đoạn PATH của LaunchNext khỏi ~/.zprofile."
+            .commandLineInterfaceRemoveCommandInfoBody: "Nút này chỉ gỡ các LaunchNext CLI shim do ứng dụng quản lý (không xóa file không liên quan):\nrm /opt/homebrew/bin/launchnext\nrm /usr/local/bin/launchnext\nrm ~/.local/bin/launchnext\nrm ~/bin/launchnext\nSau đó nó gỡ đoạn PATH của LaunchNext khỏi ~/.zprofile.",
+            .autoFullscreenTitle: "Tự động toàn màn hình",
+            .autoFullscreenDescription: "Ứng dụng mở sẽ tự động chuyển sang toàn màn hình.",
+            .autoFullscreenAccessibilityRequired: "Cần quyền Trợ năng để chuyển ứng dụng khác sang toàn màn hình. Vui lòng cấp quyền trong Cài đặt Hệ thống."
         ]) { _, new in new }
 
         builder[.french]?.merge([
@@ -4883,7 +4919,10 @@ final class LocalizationManager {
             .commandLineInterfaceRemoveCommandDone: "Записанное имя удалено.",
             .commandLineInterfaceRemoveCommandMissing: "Управляемое записанное имя не найдено.",
             .commandLineInterfaceRemoveCommandInfoTitle: "Что делает эта кнопка",
-            .commandLineInterfaceRemoveCommandInfoBody: "Эта кнопка удаляет только управляемые LaunchNext CLI shim (без удаления посторонних файлов):\nrm /opt/homebrew/bin/launchnext\nrm /usr/local/bin/launchnext\nrm ~/.local/bin/launchnext\nrm ~/bin/launchnext\nПосле этого удаляется PATH-фрагмент LaunchNext из ~/.zprofile."
+            .commandLineInterfaceRemoveCommandInfoBody: "Эта кнопка удаляет только управляемые LaunchNext CLI shim (без удаления посторонних файлов):\nrm /opt/homebrew/bin/launchnext\nrm /usr/local/bin/launchnext\nrm ~/.local/bin/launchnext\nrm ~/bin/launchnext\nПосле этого удаляется PATH-фрагмент LaunchNext из ~/.zprofile.",
+            .autoFullscreenTitle: "Автоматический полный экран",
+            .autoFullscreenDescription: "Запущенные приложения автоматически переходят в полноэкранный режим.",
+            .autoFullscreenAccessibilityRequired: "Для перевода других приложений в полноэкранный режим требуется разрешение универсального доступа. Предоставьте его в Системных настройках."
         ]) { _, new in new }
 
         builder[.portugueseBrazil]?.merge([
@@ -5321,7 +5360,10 @@ final class LocalizationManager {
             .scanSourcesResetButton: "डिफ़ॉल्ट पुनर्स्थापित करें",
             .scanSourcesEmptyHint: "अभी कोई कस्टम निर्देशिका नहीं है। और ऐप सिंक करने के लिए एक जोड़ें।",
             .scanSourcesMissingBadge: "ऑफ़लाइन",
-            .missingAppBadge: "ऑफ़लाइन"
+            .missingAppBadge: "ऑफ़लाइन",
+            .autoFullscreenTitle: "स्वचालित पूर्ण स्क्रीन",
+            .autoFullscreenDescription: "खोले गए ऐप्स स्वचालित रूप से पूर्ण स्क्रीन में जाते हैं।",
+            .autoFullscreenAccessibilityRequired: "अन्य ऐप्स को पूर्ण स्क्रीन में बदलने के लिए एक्सेसिबिलिटी अनुमति आवश्यक है। कृपया सिस्टम सेटिंग्स में अनुमति दें।"
         ]) { _, new in new }
 
         builder[.hindi] = hindiDictionary
