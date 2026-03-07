@@ -1087,6 +1087,16 @@ final class AppStore: ObservableObject {
         }
     }
 
+    @Published var showInDock: Bool = {
+        if UserDefaults.standard.object(forKey: "showInDock") == nil { return false }
+        return UserDefaults.standard.bool(forKey: "showInDock")
+    }() {
+        didSet {
+            guard showInDock != oldValue else { return }
+            UserDefaults.standard.set(showInDock, forKey: "showInDock")
+        }
+    }
+
     @Published var scrollSensitivity: Double {
         didSet {
             UserDefaults.standard.set(scrollSensitivity, forKey: "scrollSensitivity")
