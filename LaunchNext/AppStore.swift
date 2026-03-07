@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 import Carbon
 import Carbon.HIToolbox
 import ServiceManagement
+import ApplicationServices
 
 enum AppearancePreference: String, CaseIterable, Identifiable {
     case system
@@ -726,7 +727,17 @@ final class AppStore: ObservableObject {
             UserDefaults.standard.set(kioskMode, forKey: "kioskMode")
         }
     }
-    
+
+    @Published var autoFullscreen: Bool = {
+        if UserDefaults.standard.object(forKey: "autoFullscreen") == nil { return false }
+        return UserDefaults.standard.bool(forKey: "autoFullscreen")
+    }() {
+        didSet {
+            guard autoFullscreen != oldValue else { return }
+            UserDefaults.standard.set(autoFullscreen, forKey: "autoFullscreen")
+        }
+    }
+
     @Published var scrollSensitivity: Double {
         didSet {
             UserDefaults.standard.set(scrollSensitivity, forKey: "scrollSensitivity")
@@ -5627,6 +5638,81 @@ final class AppStore: ObservableObject {
 
     func openReleaseURL(_ url: URL) {
         NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - Auto-Fullscreen
+
+    private var accessibilityPollTimer: DispatchSourceTimer?
+
+    func isAccessibilityTrusted() -> Bool {
+        AXIsProcessTrusted()
+    }
+
+    func promptAccessibilityPermission() {
+        for window in NSApp.windows where window.level.rawValue > NSWindow.Level.normal.rawValue {
+            window.level = NSWindow.Level.normal
+        }
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+        startAccessibilityPolling()
+    }
+
+    func startAccessibilityPolling() {
+        stopAccessibilityPolling()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 0.3, repeating: 0.3)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            let trusted = AXIsProcessTrusted()
+            if trusted && !self.autoFullscreen {
+                self.autoFullscreen = true
+            } else if !trusted && self.autoFullscreen {
+                self.autoFullscreen = false
+            }
+        }
+        accessibilityPollTimer = timer
+        timer.resume()
+    }
+
+    func stopAccessibilityPolling() {
+        accessibilityPollTimer?.cancel()
+        accessibilityPollTimer = nil
+    }
+
+    func makeAppFullscreenIfEnabled(appURL: URL) {
+        guard autoFullscreen, isAccessibilityTrusted() else { return }
+        guard let bundle = Bundle(url: appURL),
+              let bundleID = bundle.bundleIdentifier else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.pollForFullscreen(bundleID: bundleID, attempt: 0)
+        }
+    }
+
+    private func pollForFullscreen(bundleID: String, attempt: Int) {
+        let maxAttempts = 15
+        guard attempt < maxAttempts else { return }
+
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        guard let app = apps.first else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.pollForFullscreen(bundleID: bundleID, attempt: attempt + 1)
+            }
+            return
+        }
+
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        var windowRef: CFTypeRef?
+        let windowResult = AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowRef)
+
+        guard windowResult == .success, let window = windowRef else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.pollForFullscreen(bundleID: bundleID, attempt: attempt + 1)
+            }
+            return
+        }
+
+        let axWindow = window as! AXUIElement
+        AXUIElementSetAttributeValue(axWindow, "AXFullScreen" as CFString, true as CFTypeRef)
     }
 }
 
