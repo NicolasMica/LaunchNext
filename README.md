@@ -96,6 +96,19 @@ xcodebuild -project LaunchNext.xcodeproj -scheme LaunchNext -configuration Relea
 xcodebuild -project LaunchNext.xcodeproj -scheme LaunchNext -configuration Release ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO clean build
 ```
 
+### Quick Start with `just`
+
+Install [just](https://github.com/casey/just) (`brew install just`) to use shortcut commands:
+
+```bash
+just            # List all commands
+just setup      # Build the SwiftUpdater dependency
+just build      # Debug build
+just open       # Launch the built app
+just kill       # Stop running instances
+just clean      # Remove build artifacts
+```
+
 ## Usage
 
 ### Getting Started
