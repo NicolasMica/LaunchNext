@@ -72,6 +72,7 @@ struct CAGridViewRepresentable: NSViewRepresentable {
                 AppDelegate.shared?.hideWindow(force: true)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     NSWorkspace.shared.open(app.url)
+                    AppDelegate.shared?.appStore.makeAppFullscreenIfEnabled(appURL: app.url)
                 }
             case .folder(let folder):
                 onOpenFolder?(folder)

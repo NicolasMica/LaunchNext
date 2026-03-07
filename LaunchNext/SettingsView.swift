@@ -200,6 +200,7 @@ struct SettingsView: View {
             .background(.ultraThinMaterial)
 
             Button {
+                appStore.stopAccessibilityPolling()
                 appStore.isSetting = false
             } label: {
                 Image(systemName: "xmark")
@@ -2977,7 +2978,32 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer().frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(appStore.localized(.autoFullscreenTitle))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Toggle("", isOn: $appStore.autoFullscreen)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .onAppear {
+                                appStore.startAccessibilityPolling()
+                            }
+                            .onDisappear {
+                                appStore.stopAccessibilityPolling()
+                            }
+                            .onChange(of: appStore.autoFullscreen) { newValue in
+                                if newValue && !appStore.isAccessibilityTrusted() {
+                                    appStore.autoFullscreen = false
+                                    appStore.promptAccessibilityPermission()
+                                }
+                            }
+                    }
+                    Text(appStore.localized(.autoFullscreenDescription))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(12)
@@ -4981,6 +5007,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                     keys.insert(AppStore.showQuickRefreshButtonKey)
                     keys.insert(AppStore.lockLayoutKey)
                     keys.insert("kioskMode")
+                    keys.insert("autoFullscreen")
                     keys.insert(AppStore.uninstallToolAppPathKey)
                     keys.insert(AppStore.dockDragSideKey)
                     keys.insert(AppStore.dockDragTriggerDistanceKey)
