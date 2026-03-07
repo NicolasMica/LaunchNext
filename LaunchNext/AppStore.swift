@@ -5643,6 +5643,7 @@ final class AppStore: ObservableObject {
     // MARK: - Auto-Fullscreen
 
     private var accessibilityPollTimer: DispatchSourceTimer?
+    private var awaitingAccessibilityGrant = false
 
     func isAccessibilityTrusted() -> Bool {
         AXIsProcessTrusted()
@@ -5654,6 +5655,7 @@ final class AppStore: ObservableObject {
         }
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+        awaitingAccessibilityGrant = true
         startAccessibilityPolling()
     }
 
@@ -5664,7 +5666,8 @@ final class AppStore: ObservableObject {
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let trusted = AXIsProcessTrusted()
-            if trusted && !self.autoFullscreen {
+            if trusted && self.awaitingAccessibilityGrant {
+                self.awaitingAccessibilityGrant = false
                 self.autoFullscreen = true
             } else if !trusted && self.autoFullscreen {
                 self.autoFullscreen = false
