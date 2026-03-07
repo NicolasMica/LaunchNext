@@ -69,7 +69,9 @@ struct CAGridViewRepresentable: NSViewRepresentable {
             switch item {
             case .app(let app):
                 onOpenApp?(app)
-                AppDelegate.shared?.hideWindow(force: true)
+                if !(AppDelegate.shared?.appStore.kioskMode ?? false) {
+                    AppDelegate.shared?.hideWindow(force: true)
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     NSWorkspace.shared.open(app.url)
                     AppDelegate.shared?.appStore.makeAppFullscreenIfEnabled(appURL: app.url)
