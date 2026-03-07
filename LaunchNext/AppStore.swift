@@ -983,6 +983,16 @@ final class AppStore: ObservableObject {
         didSet {
             guard kioskMode != oldValue else { return }
             UserDefaults.standard.set(kioskMode, forKey: "kioskMode")
+            if kioskMode {
+                if !isFullscreenMode { isFullscreenMode = true }
+                if !autoFullscreen {
+                    if isAccessibilityTrusted() {
+                        autoFullscreen = true
+                    } else {
+                        promptAccessibilityPermission()
+                    }
+                }
+            }
         }
     }
 

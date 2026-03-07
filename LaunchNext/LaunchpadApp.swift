@@ -76,6 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
         bindControllerMenuToggle()
         bindSystemUIVisibility()
         bindShowInDock()
+        bindKioskMode()
         bindCLICodePreference()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -1157,8 +1158,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
         window = BorderlessWindow(contentRect: rect, styleMask: [.borderless, .fullSizeContentView], backing: .buffered, defer: false)
         window?.delegate = self
         window?.isMovable = false
-        window?.level = .floating
-        window?.collectionBehavior = [.transient, .canJoinAllApplications, .fullScreenAuxiliary, .ignoresCycle]
+        window?.level = appStore.kioskMode ? .normal : .floating
+        window?.collectionBehavior = appStore.kioskMode
+            ? [.fullScreenAuxiliary, .ignoresCycle]
+            : [.transient, .canJoinAllApplications, .fullScreenAuxiliary, .ignoresCycle]
         window?.isOpaque = false
         window?.backgroundColor = .clear
         window?.hasShadow = true
@@ -1241,11 +1244,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
     }
 
     func updateSystemUIVisibility() {
-        let shouldHideDock = appStore.hideDock && windowIsVisible
-        let options: NSApplication.PresentationOptions = shouldHideDock ? [.autoHideDock] : []
+        let kioskVisible = appStore.kioskMode && windowIsVisible
+        let shouldHideDock = (appStore.hideDock && windowIsVisible) || kioskVisible
+        var options: NSApplication.PresentationOptions = []
+        if shouldHideDock { options.insert(.autoHideDock) }
+        if kioskVisible { options.insert(.autoHideMenuBar) }
         if options != NSApp.presentationOptions {
             NSApp.presentationOptions = options
         }
+    }
+
+    private func bindKioskMode() {
+        appStore.$kioskMode
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self, let window = self.window else { return }
+                window.collectionBehavior = enabled
+                    ? [.fullScreenAuxiliary, .ignoresCycle]
+                    : [.transient, .canJoinAllApplications, .fullScreenAuxiliary, .ignoresCycle]
+                window.level = enabled ? .normal : .floating
+                self.updateSystemUIVisibility()
+            }
+            .store(in: &cancellables)
     }
 
     private func bindShowInDock() {
@@ -1321,7 +1342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        window?.level = .floating
+        window?.level = appStore.kioskMode ? .normal : .floating
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -1393,9 +1414,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
             window.contentView?.alphaValue = 0
         }
 
-        window.level = .floating
+        window.level = appStore.kioskMode ? .normal : .floating
         window.makeKeyAndOrderFront(nil)
-        window.collectionBehavior = [.transient, .canJoinAllApplications, .fullScreenAuxiliary, .ignoresCycle]
+        window.collectionBehavior = appStore.kioskMode
+            ? [.fullScreenAuxiliary, .ignoresCycle]
+            : [.transient, .canJoinAllApplications, .fullScreenAuxiliary, .ignoresCycle]
         window.orderFrontRegardless()
         
         // Force window to become key and main window for proper focus
