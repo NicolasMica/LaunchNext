@@ -2605,6 +2605,26 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            Divider()
+
+            HStack(alignment: .center, spacing: 24) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(appStore.localized(.kioskModeTitle))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Toggle("", isOn: $appStore.kioskMode)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                    Text(appStore.localized(.kioskModeDescription))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer().frame(maxWidth: .infinity)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -3941,6 +3961,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                     keys.insert("isStartOnLogin")
                     keys.insert(AppStore.showQuickRefreshButtonKey)
                     keys.insert(AppStore.lockLayoutKey)
+                    keys.insert("kioskMode")
                     keys.insert(AppStore.uninstallToolAppPathKey)
                 }
                 if appearanceCheckbox.state == .on {
