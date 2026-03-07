@@ -2413,7 +2413,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .padding(.vertical, 10)
 
             label
-                .glassEffect(.clear, in: Capsule())
+                .liquidGlass(in: Capsule())
                 .clipShape(Capsule())
                 .shadow(color: Color.black.opacity(shadowOpacity), radius: shadowRadius, x: 0, y: shadowOffsetY)
                 .scaleEffect(scale)
@@ -2566,7 +2566,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     // MARK: - Inline Games
