@@ -75,11 +75,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
         bindControllerPreference()
         bindControllerMenuToggle()
         bindSystemUIVisibility()
+        bindShowInDock()
         bindCLICodePreference()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.applyAppearancePreference(self.appStore.appearancePreference)
             self.updateSystemUIVisibility()
+            self.applyShowInDock()
         }
 
         if appStore.isFullscreenMode { updateWindowMode(isFullscreen: true) }
@@ -1243,6 +1245,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
         let options: NSApplication.PresentationOptions = shouldHideDock ? [.autoHideDock] : []
         if options != NSApp.presentationOptions {
             NSApp.presentationOptions = options
+        }
+    }
+
+    private func bindShowInDock() {
+        appStore.$showInDock
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.applyShowInDock() }
+            .store(in: &cancellables)
+    }
+
+    func applyShowInDock() {
+        let policy: NSApplication.ActivationPolicy = appStore.showInDock ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        if policy == .regular {
+            DispatchQueue.main.async { NSApp.activate(ignoringOtherApps: true) }
         }
     }
 
