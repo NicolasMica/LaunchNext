@@ -2608,13 +2608,18 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             Divider()
 
             HStack(alignment: .center, spacing: 24) {
-                HStack {
-                    Text(appStore.localized(.kioskModeTitle))
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Toggle("", isOn: $appStore.kioskMode)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(appStore.localized(.kioskModeTitle))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Toggle("", isOn: $appStore.kioskMode)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                    Text(appStore.localized(.kioskModeDescription))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
