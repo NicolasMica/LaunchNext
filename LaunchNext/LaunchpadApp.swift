@@ -1244,8 +1244,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
     }
 
     func updateSystemUIVisibility() {
-        let shouldHideDock = appStore.hideDock && windowIsVisible
-        let options: NSApplication.PresentationOptions = shouldHideDock ? [.autoHideDock] : []
+        let kioskVisible = appStore.kioskMode && windowIsVisible
+        let shouldHideDock = (appStore.hideDock && windowIsVisible) || kioskVisible
+        var options: NSApplication.PresentationOptions = []
+        if shouldHideDock { options.insert(.autoHideDock) }
+        if kioskVisible { options.insert(.autoHideMenuBar) }
         if options != NSApp.presentationOptions {
             NSApp.presentationOptions = options
         }
@@ -1261,6 +1264,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
                     ? [.fullScreenAuxiliary, .ignoresCycle]
                     : [.transient, .canJoinAllApplications, .fullScreenAuxiliary, .ignoresCycle]
                 window.level = enabled ? .normal : .floating
+                self.updateSystemUIVisibility()
             }
             .store(in: &cancellables)
     }
