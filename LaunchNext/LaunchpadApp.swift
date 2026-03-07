@@ -1414,7 +1414,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
                 if self.appStore.gameControllerMenuTogglesLaunchpad {
                     self.toggleWindow()
                 } else if self.windowIsVisible {
-                    self.hideWindow()
+                    self.hideWindow(force: true)
                 }
             }
             .store(in: &cancellables)
@@ -1460,7 +1460,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
         startPendingWindowTransition()
     }
     
-    func hideWindow() {
+    func hideWindow(force: Bool = false) {
+        if !force && appStore.kioskMode { return }
         pendingHide = true
         pendingShow = false
         startPendingWindowTransition()
@@ -1480,7 +1481,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
 
     func toggleWindow() {
         if windowIsVisible {
-            hideWindow()
+            hideWindow(force: true)
         } else {
             showWindow()
         }
@@ -1700,7 +1701,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSGestureR
             return true
         }
         if window?.isVisible == true {
-            hideWindow()
+            hideWindow(force: true)
         } else {
             showWindow()
         }
