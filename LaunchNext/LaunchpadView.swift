@@ -1054,7 +1054,9 @@ struct LaunchpadView: View {
     }
 
     private func launchApp(_ app: AppInfo) {
-        AppDelegate.shared?.hideWindow(force: true)
+        if !appStore.kioskMode {
+            AppDelegate.shared?.hideWindow(force: true)
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             NSWorkspace.shared.open(app.url)
             appStore.makeAppFullscreenIfEnabled(appURL: app.url)
