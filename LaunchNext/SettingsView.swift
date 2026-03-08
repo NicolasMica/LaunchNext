@@ -2059,7 +2059,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .padding(.vertical, 10)
 
             label
-                .liquidGlass(in: Capsule())
+                .liquidGlass(.clear, in: Capsule())
                 .clipShape(Capsule())
                 .shadow(color: Color.black.opacity(shadowOpacity), radius: shadowRadius, x: 0, y: shadowOffsetY)
                 .scaleEffect(scale)

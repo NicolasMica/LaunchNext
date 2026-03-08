@@ -15,23 +15,47 @@ extension Font {
     }
 }
 
+// MARK: - Glass Effect Style
+
+enum LiquidGlassStyle {
+    case regular
+    case clear
+
+    var fallbackMaterial: Material {
+        switch self {
+        case .regular: .regularMaterial
+        case .clear: .ultraThinMaterial
+        }
+    }
+}
+
 // MARK: - View Extensions for Glass Effect
 extension View {
     @ViewBuilder
-    func liquidGlass<S: Shape>(in shape: S, isEnabled: Bool = true) -> some View {
-        if #available(macOS 26.0, iOS 18.0, *) {
-            self.glassEffect(.regular, in: shape)
+    func liquidGlass<S: Shape>(_ style: LiquidGlassStyle = .regular, in shape: S, isEnabled: Bool = true) -> some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            switch style {
+            case .regular:
+                self.glassEffect(.regular, in: shape)
+            case .clear:
+                self.glassEffect(.clear, in: shape)
+            }
         } else {
-            self.background(.ultraThinMaterial, in: shape)
+            self.background(style.fallbackMaterial, in: shape)
         }
     }
 
     @ViewBuilder
-    func liquidGlass(isEnabled: Bool = true) -> some View {
-        if #available(macOS 26.0, iOS 18.0, *) {
-            self.glassEffect(.regular)
+    func liquidGlass(_ style: LiquidGlassStyle = .regular, isEnabled: Bool = true) -> some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            switch style {
+            case .regular:
+                self.glassEffect(.regular)
+            case .clear:
+                self.glassEffect(.clear)
+            }
         } else {
-            self.background(.ultraThinMaterial)
+            self.background(style.fallbackMaterial)
         }
     }
 }
