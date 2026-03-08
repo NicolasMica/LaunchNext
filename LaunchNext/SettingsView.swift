@@ -367,7 +367,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .scrollDisabled(section == .about || section == .general)
+                    .scrollDisabled(section == .about)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .scrollBounceBehavior(.basedOnSize)
                 }
