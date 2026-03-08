@@ -633,7 +633,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                     ScrollView(showsIndicators: false) {
                         scrollContent(for: section)
                     }
-                    .scrollDisabled(section == .about || section == .general)
+                    .scrollDisabled(section == .about)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .scrollBounceBehavior(.basedOnSize)
                 }
