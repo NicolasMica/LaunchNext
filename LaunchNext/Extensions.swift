@@ -20,13 +20,7 @@ extension Font {
 enum LiquidGlassStyle {
     case regular
     case clear
-
-    var fallbackMaterial: Material {
-        switch self {
-        case .regular: .regularMaterial
-        case .clear: .ultraThinMaterial
-        }
-    }
+    case identity
 }
 
 // MARK: - View Extensions for Glass Effect
@@ -39,9 +33,18 @@ extension View {
                 self.glassEffect(.regular, in: shape)
             case .clear:
                 self.glassEffect(.clear, in: shape)
+            case .identity:
+                self.glassEffect(.identity, in: shape)
             }
         } else {
-            self.background(style.fallbackMaterial, in: shape)
+            switch style {
+            case .regular:
+                self.background(.regularMaterial, in: shape)
+            case .clear:
+                self.background(.ultraThinMaterial, in: shape)
+            case .identity:
+                self
+            }
         }
     }
 
@@ -53,9 +56,18 @@ extension View {
                 self.glassEffect(.regular)
             case .clear:
                 self.glassEffect(.clear)
+            case .identity:
+                self.glassEffect(.identity)
             }
         } else {
-            self.background(style.fallbackMaterial)
+            switch style {
+            case .regular:
+                self.background(.regularMaterial)
+            case .clear:
+                self.background(.ultraThinMaterial)
+            case .identity:
+                self
+            }
         }
     }
 }
