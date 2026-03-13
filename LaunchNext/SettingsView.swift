@@ -4496,42 +4496,42 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(appStore.localized(.backgroundStyleTitle))
-                    .font(.headline)
-                Picker("", selection: $appStore.launchpadBackgroundStyle) {
-                    ForEach(AppStore.BackgroundStyle.allCases) { style in
-                        Text(appStore.localized(style.localizationKey)).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-
             if #available(macOS 26.0, iOS 26.0, *) {
-                let useGlass = appStore.launchpadBackgroundStyle == .glass
-                let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-
-                ZStack {
-                    Image("AboutBackground")
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fill)
-
-                    HStack(spacing: 16) {
-                        glassPreviewCard(label: "Regular", icon: "app.fill", style: .regular, useGlass: useGlass, shape: shape)
-                        glassPreviewCard(label: "Clear", icon: "app.fill", style: .clear, useGlass: useGlass, shape: shape)
-                        glassPreviewCard(label: "Identity", icon: "app.fill", style: .identity, useGlass: useGlass, shape: shape)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(appStore.localized(.backgroundStyleTitle))
+                        .font(.headline)
+                    Picker("", selection: $appStore.launchpadBackgroundStyle) {
+                        ForEach(AppStore.BackgroundStyle.allCases) { style in
+                            Text(appStore.localized(style.localizationKey)).tag(style)
+                        }
                     }
-                    .padding(20)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    let useGlass = appStore.launchpadBackgroundStyle == .glass
+                    let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
+                    ZStack {
+                        Image("AboutBackground")
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fill)
+
+                        HStack(spacing: 16) {
+                            glassPreviewCard(label: "Regular", icon: "app.fill", style: .regular, useGlass: useGlass, shape: shape)
+                            glassPreviewCard(label: "Clear", icon: "app.fill", style: .clear, useGlass: useGlass, shape: shape)
+                            glassPreviewCard(label: "Identity", icon: "app.fill", style: .identity, useGlass: useGlass, shape: shape)
+                        }
+                        .padding(20)
+                    }
+                    .frame(height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1.4)
+                    )
+                    .allowsHitTesting(false)
                 }
-                .frame(height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1.4)
-                )
-                .allowsHitTesting(false)
             }
         }
     }
