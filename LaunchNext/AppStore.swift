@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 import Carbon
 import Carbon.HIToolbox
 import ServiceManagement
+@preconcurrency import UserNotifications
 import ApplicationServices
 
 enum AppearancePreference: String, CaseIterable, Identifiable {
@@ -180,6 +181,61 @@ final class AppStore: ObservableObject {
         }
     }
 
+    enum DockDragSide: String, CaseIterable, Codable, Identifiable {
+        case disabled
+        case bottom
+        case left
+        case right
+
+        var id: String { rawValue }
+
+        var localizationKey: LocalizationKey {
+            switch self {
+            case .disabled: return .dockDragDisabled
+            case .bottom: return .dockDragSideBottom
+            case .left: return .dockDragSideLeft
+            case .right: return .dockDragSideRight
+            }
+        }
+    }
+
+    enum HotCornerPosition: String, CaseIterable, Codable, Identifiable {
+        case topLeft
+        case topRight
+        case bottomLeft
+        case bottomRight
+
+        var id: String { rawValue }
+
+        var localizationKey: LocalizationKey {
+            switch self {
+            case .topLeft: return .hotCornerPositionTopLeft
+            case .topRight: return .hotCornerPositionTopRight
+            case .bottomLeft: return .hotCornerPositionBottomLeft
+            case .bottomRight: return .hotCornerPositionBottomRight
+            }
+        }
+    }
+
+    // Experimental tap behavior used by the low-level gesture monitor.
+    // If gesture support is removed later, this enum can be deleted together
+    // with the gesture keys and @Published fields below.
+    enum GestureTapAction: String, CaseIterable, Codable, Identifiable {
+        case off
+        case open
+        case toggle
+
+        var id: String { rawValue }
+
+        var localizationKey: LocalizationKey {
+            switch self {
+            case .off: return .gestureTapActionOff
+            case .open: return .gestureTapActionOpen
+            case .toggle: return .gestureTapActionToggle
+            }
+        }
+    }
+
     enum DevelopmentBackgroundOverride: String, CaseIterable, Identifiable {
         case none
         case solidWhite
@@ -264,6 +320,20 @@ final class AppStore: ObservableObject {
     static let useCAGridRendererKey = "useCAGridRenderer"
     static let windowOpenAnimationKey = "windowOpenAnimationEnabled"
     static let developmentEnableCLICodeKey = "developmentEnableCLICode"
+    static let dockDragEnabledKey = "dockDragEnabled"
+    static let dockDragSideKey = "dockDragSide"
+    static let dockDragTriggerDistanceKey = "dockDragTriggerDistance"
+    static let hotCornerEnabledKey = "hotCornerEnabled"
+    static let hotCornerPositionKey = "hotCornerPosition"
+    static let hotCornerTriggerDelayKey = "hotCornerTriggerDelay"
+    static let hotCornerHitboxSizeKey = "hotCornerHitboxSize"
+    static let hotCornerToggleWhenOpenKey = "hotCornerToggleWhenOpen"
+    // Experimental gesture persistence keys.
+    // Safe to remove together with LaunchNext/Gesture/ and gesture UI wiring
+    // if the private multitouch feature is dropped later.
+    static let gestureEnabledKey = "gestureEnabled"
+    static let gestureCloseOnPinchOutKey = "gestureCloseOnPinchOut"
+    static let gestureTapActionKey = "gestureTapAction"
     private static let cliShimMarker = "# LaunchNext CLI shim"
     private static let cliPathSnippetHeader = "# >>> LaunchNext CLI >>>"
     private static let cliPathSnippetFooter = "# <<< LaunchNext CLI <<<"
@@ -288,6 +358,12 @@ final class AppStore: ObservableObject {
     static let pageIndicatorTopPaddingKey = "pageIndicatorTopPadding"
     static let onboardingVersionKey = "onboardingVersionShown"
     static let currentOnboardingVersion = 1
+    static let dockDragTriggerDistanceRange: ClosedRange<Double> = 8...72
+    static let defaultDockDragTriggerDistance: Double = 50
+    static let hotCornerTriggerDelayRange: ClosedRange<Double> = 0...1.2
+    static let hotCornerHitboxSizeRange: ClosedRange<Double> = 20...120
+    static let defaultHotCornerTriggerDelay: Double = 0.25
+    static let defaultHotCornerHitboxSize: Double = 50
     // private static let aiFeatureEnabledKey = "aiFeatureEnabled"
     // private static let aiOverlayHotKeyKey = "aiOverlayHotKeyConfiguration"
 
@@ -361,6 +437,9 @@ final class AppStore: ObservableObject {
     private static let defaultLaunchpadOpenSound = "Submarine"
     private static let defaultLaunchpadCloseSound = "Glass"
     private static let defaultNavigationSound = "Tink"
+    fileprivate static let updateNotificationCategoryIdentifier = "launchnext.update.category"
+    fileprivate static let updateNotificationDownloadActionIdentifier = "launchnext.update.download"
+    private var hasConfiguredUpdateNotifications = false
 
     private var lastUpdateCheck: Date? {
         get {
@@ -711,6 +790,18 @@ final class AppStore: ObservableObject {
 
     private static func clampPageIndicatorTopPadding(_ value: Double) -> Double {
         min(max(value, pageIndicatorTopPaddingRange.lowerBound), pageIndicatorTopPaddingRange.upperBound)
+    }
+
+    private static func clampDockDragTriggerDistance(_ value: Double) -> Double {
+        min(max(value, dockDragTriggerDistanceRange.lowerBound), dockDragTriggerDistanceRange.upperBound)
+    }
+
+    private static func clampHotCornerTriggerDelay(_ value: Double) -> Double {
+        min(max(value, hotCornerTriggerDelayRange.lowerBound), hotCornerTriggerDelayRange.upperBound)
+    }
+
+    private static func clampHotCornerHitboxSize(_ value: Double) -> Double {
+        min(max(value, hotCornerHitboxSizeRange.lowerBound), hotCornerHitboxSizeRange.upperBound)
     }
 
     private var appearanceRefreshWorkItem: DispatchWorkItem?
@@ -1490,6 +1581,184 @@ final class AppStore: ObservableObject {
         }
     }
 
+    @Published var dockDragEnabled: Bool = {
+        let defaults = UserDefaults.standard
+        if let stored = defaults.object(forKey: AppStore.dockDragEnabledKey) as? Bool {
+            return stored
+        }
+        let legacySideRaw = defaults.string(forKey: AppStore.dockDragSideKey)
+        let enabled = legacySideRaw != DockDragSide.disabled.rawValue
+        defaults.set(enabled, forKey: AppStore.dockDragEnabledKey)
+        return enabled
+    }() {
+        didSet {
+            guard dockDragEnabled != oldValue else { return }
+            UserDefaults.standard.set(dockDragEnabled, forKey: Self.dockDragEnabledKey)
+        }
+    }
+
+    @Published var dockDragSide: DockDragSide = {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: AppStore.dockDragSideKey),
+           let side = DockDragSide(rawValue: raw),
+           side != .disabled {
+            return side
+        }
+        return .bottom
+    }() {
+        didSet {
+            guard dockDragSide != oldValue else { return }
+            UserDefaults.standard.set(dockDragSide.rawValue, forKey: Self.dockDragSideKey)
+        }
+    }
+
+    @Published var dockDragTriggerDistance: Double = {
+        let defaults = UserDefaults.standard
+        let stored = defaults.object(forKey: AppStore.dockDragTriggerDistanceKey) as? Double
+        let initial = stored ?? AppStore.defaultDockDragTriggerDistance
+        let clamped = AppStore.clampDockDragTriggerDistance(initial)
+        if stored == nil || stored != clamped {
+            defaults.set(clamped, forKey: AppStore.dockDragTriggerDistanceKey)
+        }
+        return clamped
+    }() {
+        didSet {
+            let clamped = Self.clampDockDragTriggerDistance(dockDragTriggerDistance)
+            if dockDragTriggerDistance != clamped {
+                dockDragTriggerDistance = clamped
+                return
+            }
+            UserDefaults.standard.set(dockDragTriggerDistance, forKey: Self.dockDragTriggerDistanceKey)
+        }
+    }
+
+    @Published var hotCornerEnabled: Bool = {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: AppStore.hotCornerEnabledKey) == nil {
+            defaults.set(false, forKey: AppStore.hotCornerEnabledKey)
+        }
+        return defaults.bool(forKey: AppStore.hotCornerEnabledKey)
+    }() {
+        didSet {
+            guard hotCornerEnabled != oldValue else { return }
+            UserDefaults.standard.set(hotCornerEnabled, forKey: Self.hotCornerEnabledKey)
+        }
+    }
+
+    @Published var hotCornerPosition: HotCornerPosition = {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: AppStore.hotCornerPositionKey),
+           let position = HotCornerPosition(rawValue: raw) {
+            return position
+        }
+        return .topLeft
+    }() {
+        didSet {
+            guard hotCornerPosition != oldValue else { return }
+            UserDefaults.standard.set(hotCornerPosition.rawValue, forKey: Self.hotCornerPositionKey)
+        }
+    }
+
+    @Published var hotCornerTriggerDelay: Double = {
+        let defaults = UserDefaults.standard
+        let stored = defaults.object(forKey: AppStore.hotCornerTriggerDelayKey) as? Double
+        let initial = stored ?? AppStore.defaultHotCornerTriggerDelay
+        let clamped = AppStore.clampHotCornerTriggerDelay(initial)
+        if stored == nil || stored != clamped {
+            defaults.set(clamped, forKey: AppStore.hotCornerTriggerDelayKey)
+        }
+        return clamped
+    }() {
+        didSet {
+            let clamped = Self.clampHotCornerTriggerDelay(hotCornerTriggerDelay)
+            if hotCornerTriggerDelay != clamped {
+                hotCornerTriggerDelay = clamped
+                return
+            }
+            UserDefaults.standard.set(hotCornerTriggerDelay, forKey: Self.hotCornerTriggerDelayKey)
+        }
+    }
+
+    @Published var hotCornerHitboxSize: Double = {
+        let defaults = UserDefaults.standard
+        let stored = defaults.object(forKey: AppStore.hotCornerHitboxSizeKey) as? Double
+        let initial = stored ?? AppStore.defaultHotCornerHitboxSize
+        let clamped = AppStore.clampHotCornerHitboxSize(initial)
+        if stored == nil || stored != clamped {
+            defaults.set(clamped, forKey: AppStore.hotCornerHitboxSizeKey)
+        }
+        return clamped
+    }() {
+        didSet {
+            let clamped = Self.clampHotCornerHitboxSize(hotCornerHitboxSize)
+            if hotCornerHitboxSize != clamped {
+                hotCornerHitboxSize = clamped
+                return
+            }
+            UserDefaults.standard.set(hotCornerHitboxSize, forKey: Self.hotCornerHitboxSizeKey)
+        }
+    }
+
+    @Published var hotCornerToggleWhenOpen: Bool = {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: AppStore.hotCornerToggleWhenOpenKey) == nil {
+            defaults.set(false, forKey: AppStore.hotCornerToggleWhenOpenKey)
+        }
+        return defaults.bool(forKey: AppStore.hotCornerToggleWhenOpenKey)
+    }() {
+        didSet {
+            guard hotCornerToggleWhenOpen != oldValue else { return }
+            UserDefaults.standard.set(hotCornerToggleWhenOpen, forKey: Self.hotCornerToggleWhenOpenKey)
+        }
+    }
+
+    // Experimental gesture settings consumed by LaunchpadApp gesture wiring.
+    // Remove these fields together with the gesture monitor/configuration flow
+    // if low-level multitouch support is no longer needed.
+    @Published var gestureEnabled: Bool = {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: AppStore.gestureEnabledKey) == nil {
+            defaults.set(false, forKey: AppStore.gestureEnabledKey)
+        }
+        return defaults.bool(forKey: AppStore.gestureEnabledKey)
+    }() {
+        didSet {
+            guard gestureEnabled != oldValue else { return }
+            UserDefaults.standard.set(gestureEnabled, forKey: Self.gestureEnabledKey)
+        }
+    }
+
+    @Published var gestureCloseOnPinchOut: Bool = {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: AppStore.gestureCloseOnPinchOutKey) == nil {
+            defaults.set(false, forKey: AppStore.gestureCloseOnPinchOutKey)
+        }
+        return defaults.bool(forKey: AppStore.gestureCloseOnPinchOutKey)
+    }() {
+        didSet {
+            guard gestureCloseOnPinchOut != oldValue else { return }
+            UserDefaults.standard.set(gestureCloseOnPinchOut, forKey: Self.gestureCloseOnPinchOutKey)
+        }
+    }
+
+    @Published var gestureTapAction: GestureTapAction = {
+        let defaults = UserDefaults.standard
+        if let rawValue = defaults.string(forKey: AppStore.gestureTapActionKey),
+           let action = GestureTapAction(rawValue: rawValue) {
+            return action
+        }
+        let legacyEnabled = defaults.object(forKey: "gestureTapEnabled") as? Bool ?? false
+        let legacyToggle = defaults.object(forKey: "gestureTapToggleWhenOpen") as? Bool ?? false
+        let migratedAction: GestureTapAction = legacyEnabled ? (legacyToggle ? .toggle : .open) : .off
+        defaults.set(migratedAction.rawValue, forKey: AppStore.gestureTapActionKey)
+        return migratedAction
+    }() {
+        didSet {
+            guard gestureTapAction != oldValue else { return }
+            UserDefaults.standard.set(gestureTapAction.rawValue, forKey: Self.gestureTapActionKey)
+        }
+    }
+
     // @Published var isAIEnabled: Bool = {
     //     if UserDefaults.standard.object(forKey: AppStore.aiFeatureEnabledKey) == nil { return false }
     //     return UserDefaults.standard.bool(forKey: AppStore.aiFeatureEnabledKey)
@@ -2025,6 +2294,45 @@ final class AppStore: ObservableObject {
         if UserDefaults.standard.object(forKey: AppStore.reverseWheelPagingKey) == nil {
             UserDefaults.standard.set(false, forKey: AppStore.reverseWheelPagingKey)
         }
+        if defaults.object(forKey: Self.dockDragEnabledKey) == nil {
+            let legacySideRaw = defaults.string(forKey: Self.dockDragSideKey)
+            defaults.set(legacySideRaw != DockDragSide.disabled.rawValue, forKey: Self.dockDragEnabledKey)
+        }
+        if defaults.object(forKey: Self.dockDragSideKey) == nil {
+            defaults.set(DockDragSide.bottom.rawValue, forKey: Self.dockDragSideKey)
+        }
+        let storedDockDragDistance = defaults.object(forKey: Self.dockDragTriggerDistanceKey) as? Double ?? Self.defaultDockDragTriggerDistance
+        let clampedDockDragDistance = Self.clampDockDragTriggerDistance(storedDockDragDistance)
+        defaults.set(clampedDockDragDistance, forKey: Self.dockDragTriggerDistanceKey)
+        if defaults.object(forKey: Self.hotCornerEnabledKey) == nil {
+            defaults.set(false, forKey: Self.hotCornerEnabledKey)
+        }
+        if defaults.object(forKey: Self.hotCornerPositionKey) == nil {
+            defaults.set(HotCornerPosition.topLeft.rawValue, forKey: Self.hotCornerPositionKey)
+        }
+        let storedHotCornerDelay = defaults.object(forKey: Self.hotCornerTriggerDelayKey) as? Double ?? Self.defaultHotCornerTriggerDelay
+        let clampedHotCornerDelay = Self.clampHotCornerTriggerDelay(storedHotCornerDelay)
+        defaults.set(clampedHotCornerDelay, forKey: Self.hotCornerTriggerDelayKey)
+        let storedHotCornerHitboxSize = defaults.object(forKey: Self.hotCornerHitboxSizeKey) as? Double ?? Self.defaultHotCornerHitboxSize
+        let clampedHotCornerHitboxSize = Self.clampHotCornerHitboxSize(storedHotCornerHitboxSize)
+        defaults.set(clampedHotCornerHitboxSize, forKey: Self.hotCornerHitboxSizeKey)
+        if defaults.object(forKey: Self.hotCornerToggleWhenOpenKey) == nil {
+            defaults.set(false, forKey: Self.hotCornerToggleWhenOpenKey)
+        }
+        if defaults.object(forKey: Self.gestureEnabledKey) == nil {
+            defaults.set(false, forKey: Self.gestureEnabledKey)
+        }
+        if defaults.object(forKey: Self.gestureCloseOnPinchOutKey) == nil {
+            defaults.set(false, forKey: Self.gestureCloseOnPinchOutKey)
+        }
+        // Keep a one-time migration path from the older tap booleans so users
+        // do not lose settings if gesture support remains enabled.
+        if defaults.object(forKey: Self.gestureTapActionKey) == nil {
+            let legacyEnabled = defaults.object(forKey: "gestureTapEnabled") as? Bool ?? false
+            let legacyToggle = defaults.object(forKey: "gestureTapToggleWhenOpen") as? Bool ?? false
+            let migratedAction: GestureTapAction = legacyEnabled ? (legacyToggle ? .toggle : .open) : .off
+            defaults.set(migratedAction.rawValue, forKey: Self.gestureTapActionKey)
+        }
         if defaults.object(forKey: Self.gameControllerMenuToggleKey) == nil {
             defaults.set(true, forKey: Self.gameControllerMenuToggleKey)
         }
@@ -2076,6 +2384,18 @@ final class AppStore: ObservableObject {
         let storedDuration = UserDefaults.standard.double(forKey: "animationDuration")
         self.animationDuration = storedDuration == 0 ? 0.3 : storedDuration
         self.enableWindowOpenAnimation = defaults.object(forKey: Self.windowOpenAnimationKey) as? Bool ?? true
+        self.dockDragEnabled = defaults.object(forKey: Self.dockDragEnabledKey) as? Bool ?? true
+        let storedDockDragSide = DockDragSide(rawValue: defaults.string(forKey: Self.dockDragSideKey) ?? "")
+        self.dockDragSide = storedDockDragSide == .disabled ? .bottom : (storedDockDragSide ?? .bottom)
+        self.dockDragTriggerDistance = clampedDockDragDistance
+        self.hotCornerEnabled = defaults.object(forKey: Self.hotCornerEnabledKey) as? Bool ?? false
+        self.hotCornerPosition = HotCornerPosition(rawValue: defaults.string(forKey: Self.hotCornerPositionKey) ?? "") ?? .topLeft
+        self.hotCornerTriggerDelay = clampedHotCornerDelay
+        self.hotCornerHitboxSize = clampedHotCornerHitboxSize
+        self.hotCornerToggleWhenOpen = defaults.object(forKey: Self.hotCornerToggleWhenOpenKey) as? Bool ?? false
+        self.gestureEnabled = defaults.object(forKey: Self.gestureEnabledKey) as? Bool ?? false
+        self.gestureCloseOnPinchOut = defaults.object(forKey: Self.gestureCloseOnPinchOutKey) as? Bool ?? false
+        self.gestureTapAction = GestureTapAction(rawValue: defaults.string(forKey: Self.gestureTapActionKey) ?? "") ?? .off
         self.enableAnimations = UserDefaults.standard.object(forKey: "enableAnimations") as? Bool ?? true
         self.customIconFileURL = AppStore.customIconFileURL
 
@@ -5051,8 +5371,6 @@ final class AppStore: ObservableObject {
                     items[itemIndex] = .folder(folder)
                     changed = true
                 }
-            case .folder:
-                break
             case .empty:
                 break
             case .missingApp:
@@ -5809,26 +6127,91 @@ final class AppStore: ObservableObject {
 
     @MainActor
     private func presentUpdateAlert(for release: UpdateRelease) {
-        let notification = NSUserNotification()
-        notification.title = localized(.updateAvailable)
-        notification.informativeText = "\(localized(.newVersion)) \(release.version)"
-        notification.hasActionButton = true
-        notification.actionButtonTitle = localized(.downloadUpdate)
-        notification.otherButtonTitle = localized(.cancel)
-        notification.userInfo = ["releaseURL": release.url.absoluteString]
-
-        NSUserNotificationCenter.default.delegate = notificationDelegate
-        NSUserNotificationCenter.default.deliver(notification)
+        enqueueUpdateNotification(
+            title: localized(.updateAvailable),
+            body: "\(localized(.newVersion)) \(release.version)",
+            releaseURL: release.url
+        )
     }
 
     @MainActor
     private func presentUpdateFailureAlert(_ message: String) {
-        let notification = NSUserNotification()
-        notification.title = localized(.updateCheckFailed)
-        notification.informativeText = message
+        enqueueUpdateNotification(
+            title: localized(.updateCheckFailed),
+            body: message,
+            releaseURL: nil
+        )
+    }
 
-        NSUserNotificationCenter.default.delegate = notificationDelegate
-        NSUserNotificationCenter.default.deliver(notification)
+    @MainActor
+    func sendTestUpdateNotification() {
+        enqueueUpdateNotification(
+            title: localized(.updateAvailable),
+            body: "\(localized(.newVersion)) 9.9.9-test",
+            releaseURL: URL(string: "https://closex.org/launchnext/")
+        )
+    }
+
+    @MainActor
+    private func ensureUpdateNotificationSetup() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = notificationDelegate
+
+        guard !hasConfiguredUpdateNotifications else { return }
+
+        let downloadAction = UNNotificationAction(
+            identifier: Self.updateNotificationDownloadActionIdentifier,
+            title: localized(.downloadUpdate),
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: Self.updateNotificationCategoryIdentifier,
+            actions: [downloadAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
+        hasConfiguredUpdateNotifications = true
+    }
+
+    @MainActor
+    private func enqueueUpdateNotification(title: String, body: String, releaseURL: URL?) {
+        ensureUpdateNotificationSetup()
+
+        let releaseURLString = releaseURL?.absoluteString
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let deliverNotification = {
+                let content = UNMutableNotificationContent()
+                content.title = title
+                content.body = body
+                content.sound = .default
+                if let releaseURLString {
+                    content.categoryIdentifier = Self.updateNotificationCategoryIdentifier
+                    content.userInfo = ["releaseURL": releaseURLString]
+                }
+
+                let request = UNNotificationRequest(
+                    identifier: UUID().uuidString,
+                    content: content,
+                    trigger: nil
+                )
+                UNUserNotificationCenter.current().add(request) { _ in }
+            }
+
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                    guard granted else { return }
+                    deliverNotification()
+                }
+            case .authorized, .provisional, .ephemeral:
+                deliverNotification()
+            case .denied:
+                break
+            @unknown default:
+                break
+            }
+        }
     }
 
     @MainActor
@@ -6043,20 +6426,26 @@ final class AppStore: ObservableObject {
     }
 }
 
-private final class UpdateNotificationDelegate: NSObject, NSUserNotificationCenterDelegate {
+private final class UpdateNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     private let openHandler: (URL) -> Void
 
     init(openHandler: @escaping (URL) -> Void) {
         self.openHandler = openHandler
     }
 
-    func userNotificationCenter(_ center: NSUserNotificationCenter, shouldPresent notification: NSUserNotification) -> Bool {
-        true
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
     }
 
-    func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
-        guard notification.activationType == .actionButtonClicked,
-              let urlString = notification.userInfo?["releaseURL"] as? String,
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        defer { completionHandler() }
+
+        guard response.actionIdentifier == AppStore.updateNotificationDownloadActionIdentifier,
+              let urlString = response.notification.request.content.userInfo["releaseURL"] as? String,
               let url = URL(string: urlString) else {
             return
         }

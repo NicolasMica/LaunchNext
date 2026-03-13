@@ -60,7 +60,6 @@ struct SettingsView: View {
     @State private var editingEntries: Set<String> = []
     @State private var iconImportError: String? = nil
     @State private var showAppSourcesResetDialog = false
-    @State private var showUpdateNotes = false
     @State private var showCleanupCommand = false
     @State private var cleanupCommandCopied = false
     @State private var backupRootPath: String = UserDefaults.standard.string(forKey: "backupRootDirectory") ?? ""
@@ -83,6 +82,8 @@ struct SettingsView: View {
     @State private var copiedCLICommand: String? = nil
     @State private var cliCommandActionMessage: String? = nil
     @State private var layoutModePreviewScope: LayoutModePreviewScope = .fullscreen
+    @State private var lastUpdatesTabRefreshAt: Date? = nil
+    private let dockDragSelectableSides: [AppStore.DockDragSide] = [.bottom, .left, .right]
 
     // Sidebar sizing presets
     private var sidebarIconFrame: CGFloat {
@@ -231,9 +232,22 @@ struct SettingsView: View {
         .onDisappear {
             stopShortcutCapture(cancel: false)
         }
-        .onChange(of: appStore.isFullscreenMode) { _ in
+        .onChange(of: appStore.isFullscreenMode) { _, _ in
             guard selectedSection == .appearance else { return }
             syncLayoutModePreviewScopeToRuntime()
+        }
+        .onChange(of: selectedSection) { _, newSection in
+            guard newSection == .updates else { return }
+            guard appStore.updateState != .checking else { return }
+
+            let now = Date()
+            if let lastRefresh = lastUpdatesTabRefreshAt,
+               now.timeIntervalSince(lastRefresh) < 300 {
+                return
+            }
+
+            lastUpdatesTabRefreshAt = now
+            appStore.checkForUpdates()
         }
     }
 
@@ -326,6 +340,125 @@ private func scopedPerDisplayIndicatorBinding() -> Binding<Bool> {
     Binding(
         get: { appStore.scopedPageIndicatorPerDisplayEnabled(for: selectedAppearanceLayoutMode) },
         set: { appStore.setScopedPageIndicatorPerDisplayEnabled($0, for: selectedAppearanceLayoutMode) }
+    )
+}
+
+private var dockDragSideBinding: Binding<AppStore.DockDragSide> {
+    Binding(
+        get: { appStore.dockDragSide },
+        set: { newValue in
+            guard appStore.dockDragSide != newValue else { return }
+            DispatchQueue.main.async {
+                appStore.dockDragSide = newValue
+            }
+        }
+    )
+}
+
+private var dockDragTriggerDistanceBinding: Binding<Double> {
+    Binding(
+        get: { appStore.dockDragTriggerDistance },
+        set: { newValue in
+            let clamped = min(max(newValue, AppStore.dockDragTriggerDistanceRange.lowerBound),
+                              AppStore.dockDragTriggerDistanceRange.upperBound)
+            guard appStore.dockDragTriggerDistance != clamped else { return }
+            DispatchQueue.main.async {
+                appStore.dockDragTriggerDistance = clamped
+            }
+        }
+    )
+}
+
+private var hotCornerPositionBinding: Binding<AppStore.HotCornerPosition> {
+    Binding(
+        get: { appStore.hotCornerPosition },
+        set: { newValue in
+            guard appStore.hotCornerPosition != newValue else { return }
+            DispatchQueue.main.async {
+                appStore.hotCornerPosition = newValue
+            }
+        }
+    )
+}
+
+private var hotCornerTriggerDelayBinding: Binding<Double> {
+    Binding(
+        get: { appStore.hotCornerTriggerDelay },
+        set: { newValue in
+            let clamped = min(max(newValue, AppStore.hotCornerTriggerDelayRange.lowerBound),
+                              AppStore.hotCornerTriggerDelayRange.upperBound)
+            guard appStore.hotCornerTriggerDelay != clamped else { return }
+            DispatchQueue.main.async {
+                appStore.hotCornerTriggerDelay = clamped
+            }
+        }
+    )
+}
+
+private var hotCornerHitboxSizeBinding: Binding<Double> {
+    Binding(
+        get: { appStore.hotCornerHitboxSize },
+        set: { newValue in
+            let clamped = min(max(newValue, AppStore.hotCornerHitboxSizeRange.lowerBound),
+                              AppStore.hotCornerHitboxSizeRange.upperBound)
+            guard appStore.hotCornerHitboxSize != clamped else { return }
+            DispatchQueue.main.async {
+                appStore.hotCornerHitboxSize = clamped
+            }
+        }
+    )
+}
+
+private var hotCornerToggleWhenOpenBinding: Binding<Bool> {
+    Binding(
+        get: { appStore.hotCornerToggleWhenOpen },
+        set: { newValue in
+            guard appStore.hotCornerToggleWhenOpen != newValue else { return }
+            DispatchQueue.main.async {
+                appStore.hotCornerToggleWhenOpen = newValue
+            }
+        }
+    )
+}
+
+// Experimental gesture bindings.
+// These async wrappers keep Settings updates out of the current SwiftUI update pass.
+// If gesture support is removed later, delete these bindings together with the
+// gesture card below, the AppStore gesture fields, LaunchpadApp gesture wiring,
+// and LaunchNext/Gesture/.
+private var gestureEnabledBinding: Binding<Bool> {
+    Binding(
+        get: { appStore.gestureEnabled },
+        set: { newValue in
+            guard appStore.gestureEnabled != newValue else { return }
+            DispatchQueue.main.async {
+                appStore.gestureEnabled = newValue
+            }
+        }
+    )
+}
+
+private var gestureCloseOnPinchOutBinding: Binding<Bool> {
+    Binding(
+        get: { appStore.gestureCloseOnPinchOut },
+        set: { newValue in
+            guard appStore.gestureCloseOnPinchOut != newValue else { return }
+            DispatchQueue.main.async {
+                appStore.gestureCloseOnPinchOut = newValue
+            }
+        }
+    )
+}
+
+private var gestureTapActionBinding: Binding<AppStore.GestureTapAction> {
+    Binding(
+        get: { appStore.gestureTapAction },
+        set: { newValue in
+            guard appStore.gestureTapAction != newValue else { return }
+            DispatchQueue.main.async {
+                appStore.gestureTapAction = newValue
+            }
+        }
     )
 }
 
@@ -509,6 +642,13 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
             }
             .background(.ultraThinMaterial)
+            .overlay(alignment: .bottom) {
+                if section == .updates {
+                    updatesFloatingBar
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 16)
+                }
+            }
         }
     }
 
@@ -524,6 +664,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 Spacer(minLength: 0)
             }
             .padding(.top, 12)
+            .padding(.bottom, section == .updates ? 92 : 0)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -566,6 +707,10 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
     private var gameControllerSection: some View {
         VStack(alignment: .leading, spacing: 18) {
+            // Experimental gesture UI.
+            // Remove this card together with the gesture AppStore fields,
+            // LaunchpadApp gesture wiring, and LaunchNext/Gesture/ if the
+            // low-level multitouch feature is removed later.
             VStack(alignment: .leading, spacing: 12) {
                 Text(appStore.localized(.gameControllerPlaceholderTitle))
                     .font(.headline.weight(.semibold))
@@ -1076,6 +1221,13 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            updateControlButton(
+                title: "Test update notification",
+                systemImage: "bell.badge"
+            ) {
+                appStore.sendTestUpdateNotification()
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("Screenshot background")
                     .font(.headline)
@@ -1196,7 +1348,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 Divider()
 
                 HStack(alignment: .center, spacing: 10) {
-                    HStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
                         Text(appStore.localized(.performanceRendererBadge))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(Color.accentColor)
@@ -1223,6 +1375,12 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 if appStore.useCAGridRenderer {
                     Text(appStore.localized(.performanceRendererWarning))
                         .font(.footnote)
+                        .foregroundStyle(Color.accentColor)
+                }
+
+                if !appStore.useCAGridRenderer {
+                    Text(appStore.localized(.performanceRendererRecommendation))
+                        .font(.caption)
                         .foregroundStyle(Color.accentColor)
                 }
             }
@@ -1278,7 +1436,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             .frame(maxWidth: .infinity, alignment: .leading)
             .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .onChange(of: appStore.performanceMode) { _ in
+        .onChange(of: appStore.performanceMode) { _, _ in
             showPerformanceRestartPrompt = true
         }
         .alert(appStore.localized(.performanceModeRestartTitle), isPresented: $showPerformanceRestartPrompt) {
@@ -1595,17 +1753,24 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         let rawPath = appStore.uninstallToolAppPath.trimmingCharacters(in: .whitespacesAndNewlines)
         let toolURL = appStore.uninstallToolAppURL
         let hasSelection = !rawPath.isEmpty
+        let isMissing = appStore.uninstallToolConfiguredButMissing
         let fallbackName = rawPath.isEmpty ? "" : URL(fileURLWithPath: rawPath).deletingPathExtension().lastPathComponent
         let displayName = toolURL == nil ? fallbackName : appStore.uninstallToolAppDisplayName
 
         return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(appStore.localized(.uninstallToolPathLabel))
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 5) {
+                    Label(appStore.localized(.settingsSectionUninstall), systemImage: "trash.fill")
+                        .font(.headline)
+                    Text(appStore.localized(.uninstallSectionDescription))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 14) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [Color.red.opacity(0.14), Color.orange.opacity(0.10)],
@@ -1618,99 +1783,140 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                             .resizable()
                             .interpolation(.high)
                             .antialiased(true)
-                            .frame(width: 30, height: 30)
-                            .cornerRadius(7)
+                            .frame(width: 38, height: 38)
+                            .cornerRadius(10)
                     }
-                    .frame(width: 42, height: 42)
+                    .frame(width: 56, height: 56)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        if hasSelection {
-                            Text(displayName.isEmpty ? rawPath : displayName)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(hasSelection ? (displayName.isEmpty ? rawPath : displayName) : appStore.localized(.uninstallToolNotConfigured))
                                 .font(.headline)
                                 .lineLimit(1)
 
-                            if !appStore.uninstallToolBundleIdentifier.isEmpty {
-                                Label(appStore.uninstallToolBundleIdentifier, systemImage: "number")
+                            Spacer(minLength: 0)
+
+                            uninstallToolStatusBadge(isMissing: isMissing, hasSelection: hasSelection)
+                        }
+
+                        if hasSelection {
+                            if !rawPath.isEmpty {
+                                Text(rawPath)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                                    .lineLimit(2)
+                                    .textSelection(.enabled)
                             }
 
-                            if !appStore.uninstallToolVersionText.isEmpty {
-                                Label(appStore.uninstallToolVersionText, systemImage: "tag")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                if !appStore.uninstallToolBundleIdentifier.isEmpty {
+                                    uninstallToolMetaPill(appStore.uninstallToolBundleIdentifier, systemImage: "number")
+                                }
+                                if !appStore.uninstallToolVersionText.isEmpty {
+                                    uninstallToolMetaPill(appStore.uninstallToolVersionText, systemImage: "tag")
+                                }
                             }
-
-                            Text(rawPath)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                                .textSelection(.enabled)
                         } else {
-                            Text(appStore.localized(.uninstallToolNotConfigured))
-                                .font(.callout.weight(.semibold))
-                            Text(appStore.localized(.uninstallSectionDescription))
+                            Text(appStore.localized(.uninstallToolPathLabel))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(2)
+                        }
+
+                        if isMissing {
+                            Text(appStore.localized(.uninstallToolMissing))
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-
-                    Spacer(minLength: 0)
                 }
-                .padding(10)
+                .padding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.red.opacity(0.07))
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.red.opacity(colorScheme == .dark ? 0.10 : 0.07))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.red.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.red.opacity(colorScheme == .dark ? 0.22 : 0.18), lineWidth: 1)
                 )
 
-                if appStore.uninstallToolConfiguredButMissing {
-                    Text(appStore.localized(.uninstallToolMissing))
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
                 HStack(spacing: 10) {
-                    Button(appStore.localized(.uninstallToolChooseButton)) {
+                    Button {
                         presentUninstallToolPicker()
+                    } label: {
+                        Label(appStore.localized(.uninstallToolChooseButton), systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button(appStore.localized(.uninstallToolClearButton)) {
-                        _ = appStore.setUninstallToolApplication(url: nil)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(appStore.uninstallToolAppPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    Spacer()
-
-                    Button(appStore.localized(.uninstallToolOpenButton)) {
+                    Button {
                         if !appStore.openConfiguredUninstallTool() {
                             NSSound.beep()
                         }
+                    } label: {
+                        Label(appStore.localized(.uninstallToolOpenButton), systemImage: "arrow.up.forward.app")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .disabled(appStore.uninstallToolAppURL == nil)
+
+                    Button(role: .destructive) {
+                        _ = appStore.setUninstallToolApplication(url: nil)
+                    } label: {
+                        Label(appStore.localized(.uninstallToolClearButton), systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!hasSelection)
                 }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(appStore.localized(.uninstallSectionDescription))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
+    }
+
+    private func uninstallToolStatusBadge(isMissing: Bool, hasSelection: Bool) -> some View {
+        let title: String
+        let symbol: String
+        let fillColor: Color
+        let foreground: Color
+
+        if isMissing {
+            title = appStore.localized(.uninstallToolMissing)
+            symbol = "exclamationmark.triangle.fill"
+            fillColor = Color.red.opacity(colorScheme == .dark ? 0.22 : 0.14)
+            foreground = .red
+        } else if hasSelection {
+            title = appStore.localized(.uninstallToolOpenButton)
+            symbol = "checkmark.circle.fill"
+            fillColor = Color.green.opacity(colorScheme == .dark ? 0.20 : 0.12)
+            foreground = .green
+        } else {
+            title = appStore.localized(.uninstallToolChooseButton)
+            symbol = "circle.dashed"
+            fillColor = Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.08)
+            foreground = .secondary
+        }
+
+        return Label(title, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(fillColor, in: Capsule())
+            .foregroundStyle(foreground)
+    }
+
+    private func uninstallToolMetaPill(_ text: String, systemImage: String) -> some View {
+        return Label(text, systemImage: systemImage)
+            .font(.caption)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06), in: Capsule())
+            .foregroundStyle(.secondary)
     }
     
     private var titlesSection: some View {
@@ -3508,30 +3714,38 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         let canClear = isCapturing || appStore.globalHotKey != nil
 
         return VStack(alignment: .leading, spacing: 16) {
-            Text(appStore.localized(.globalShortcutDescription))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            if isCapturing {
-                Text(appStore.localized(.shortcutCapturePrompt))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    Image(systemName: "keyboard")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    Text(shortcutStatusText(for: .launchpad))
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .textSelection(.enabled)
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    if isCapturing {
-                        Text(appStore.localized(.shortcutListening))
-                            .font(.caption.weight(.semibold))
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("LaunchNext", systemImage: "keyboard")
+                            .font(.headline)
+                        Text(appStore.localized(.globalShortcutDescription))
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
+
+                        if isCapturing {
+                            Text(appStore.localized(.shortcutCapturePrompt))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(shortcutStatusText(for: .launchpad))
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .textSelection(.enabled)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12), in: Capsule())
+
+                        if isCapturing {
+                            Text(appStore.localized(.shortcutListening))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -3563,11 +3777,576 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                     }
                     .buttonStyle(.bordered)
                     .disabled(!canClear)
+
+                    Spacer(minLength: 0)
                 }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(appStore.localized(.dockDragSectionTitle), systemImage: "dock.rectangle")
+                            .font(.headline)
+                        Text(appStore.localized(.dockDragSectionDescription))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 12)
+                    dockDragPreview
+                }
+
+                HStack {
+                    Text(appStore.localized(.dockDragEnabledTitle))
+                    Spacer()
+                    Toggle("", isOn: dockDragEnabledBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(appStore.localized(.dockDragSideTitle))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(appStore.localized(appStore.dockDragSide.localizationKey))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(colorScheme == .dark ? 0.2 : 0.12), in: Capsule())
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach(dockDragSelectableSides) { side in
+                            dockDragSideButton(for: side)
+                        }
+                    }
+                    .disabled(!appStore.dockDragEnabled)
+                    .opacity(appStore.dockDragEnabled ? 1 : 0.45)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(appStore.localized(.dockDragTriggerDistanceTitle))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(appStore.dockDragTriggerDistance)) px")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: dockDragTriggerDistanceBinding,
+                               in: AppStore.dockDragTriggerDistanceRange,
+                               step: 1)
+                        .disabled(!appStore.dockDragEnabled)
+                        .opacity(appStore.dockDragEnabled ? 1 : 0.45)
+
+                        HStack {
+                            Text("\(Int(AppStore.dockDragTriggerDistanceRange.lowerBound))")
+                            Spacer()
+                            Text("\(Int(AppStore.dockDragTriggerDistanceRange.upperBound))")
+                        }
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .opacity(appStore.dockDragEnabled ? 1 : 0.45)
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(appStore.localized(.hotCornerSectionTitle), systemImage: "cursorarrow.motionlines")
+                            .font(.headline)
+                        Text(appStore.localized(.hotCornerSectionDescription))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 12)
+                    hotCornerPreview
+                }
+
+                HStack {
+                    Text(appStore.localized(.hotCornerEnabledTitle))
+                    Spacer()
+                    Toggle("", isOn: hotCornerEnabledBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+
+                HStack {
+                    Text(appStore.localized(.hotCornerToggleWhenOpenTitle))
+                    Spacer()
+                    Toggle("", isOn: hotCornerToggleWhenOpenBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+                .disabled(!appStore.hotCornerEnabled)
+                .opacity(appStore.hotCornerEnabled ? 1 : 0.45)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(appStore.localized(.hotCornerPositionTitle))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(appStore.localized(appStore.hotCornerPosition.localizationKey))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(colorScheme == .dark ? 0.2 : 0.12), in: Capsule())
+                    }
+
+                    VStack(spacing: 8) {
+                        HStack(spacing: 8) {
+                            hotCornerPositionButton(for: .topLeft)
+                            hotCornerPositionButton(for: .topRight)
+                        }
+                        HStack(spacing: 8) {
+                            hotCornerPositionButton(for: .bottomLeft)
+                            hotCornerPositionButton(for: .bottomRight)
+                        }
+                    }
+                    .disabled(!appStore.hotCornerEnabled)
+                    .opacity(appStore.hotCornerEnabled ? 1 : 0.45)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(appStore.localized(.hotCornerTriggerDelayTitle))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int((appStore.hotCornerTriggerDelay * 1000).rounded())) ms")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: hotCornerTriggerDelayBinding,
+                               in: AppStore.hotCornerTriggerDelayRange,
+                               step: 0.05)
+                        .disabled(!appStore.hotCornerEnabled)
+                        .opacity(appStore.hotCornerEnabled ? 1 : 0.45)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(appStore.localized(.hotCornerHitboxSizeTitle))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(appStore.hotCornerHitboxSize.rounded())) px")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: hotCornerHitboxSizeBinding,
+                               in: AppStore.hotCornerHitboxSizeRange,
+                               step: 1)
+                        .disabled(!appStore.hotCornerEnabled)
+                        .opacity(appStore.hotCornerEnabled ? 1 : 0.45)
+
+                        HStack {
+                            Text("\(Int(AppStore.hotCornerHitboxSizeRange.lowerBound))")
+                            Spacer()
+                            Text("\(Int(AppStore.hotCornerHitboxSizeRange.upperBound))")
+                        }
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .opacity(appStore.hotCornerEnabled ? 1 : 0.45)
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(appStore.localized(.gestureSectionTitle), systemImage: "hand.raised")
+                            .font(.headline)
+                        Text(appStore.localized(.gestureSectionDescription))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 12)
+                    gesturePreview
+                }
+
+                HStack {
+                    Text(appStore.localized(.gestureEnabledTitle))
+                    Spacer()
+                    Toggle("", isOn: gestureEnabledBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+
+                HStack {
+                    Text(appStore.localized(.gestureCloseOnPinchOutTitle))
+                    Spacer()
+                    Toggle("", isOn: gestureCloseOnPinchOutBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+                .disabled(!appStore.gestureEnabled)
+                .opacity(appStore.gestureEnabled ? 1 : 0.45)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(appStore.localized(.gestureTapActionTitle))
+                        Spacer()
+                        Text(appStore.localized(appStore.gestureTapAction.localizationKey))
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach(AppStore.GestureTapAction.allCases) { action in
+                            gestureTapActionButton(for: action)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(appStore.localized(.gestureSystemHintTitle))
+                        .font(.footnote.weight(.semibold))
+                    Text(appStore.localized(.gestureSystemHintBody))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.accentColor.opacity(colorScheme == .dark ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private var dockDragPreview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.28 : 0.82))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .padding(16)
+                .overlay(dockDragPreviewHighlight.padding(16))
+        }
+        .frame(width: 118, height: 82)
+    }
+
+    @ViewBuilder
+    private var dockDragPreviewHighlight: some View {
+        if !appStore.dockDragEnabled {
+            Image(systemName: "slash.circle")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.secondary)
+        } else {
+            switch appStore.dockDragSide {
+            case .disabled:
+                EmptyView()
+            case .bottom:
+                VStack {
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.95))
+                        .frame(width: 54, height: 6)
+                        .padding(.bottom, 4)
+                }
+            case .left:
+                HStack {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.95))
+                        .frame(width: 6, height: 34)
+                        .padding(.leading, 4)
+                    Spacer()
+                }
+            case .right:
+                HStack {
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.95))
+                        .frame(width: 6, height: 34)
+                        .padding(.trailing, 4)
+                }
+            }
+        }
+    }
+
+    private var dockDragEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appStore.dockDragEnabled },
+            set: { newValue in
+                guard appStore.dockDragEnabled != newValue else { return }
+                DispatchQueue.main.async {
+                    appStore.dockDragEnabled = newValue
+                }
+            }
+        )
+    }
+
+    private var hotCornerEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appStore.hotCornerEnabled },
+            set: { newValue in
+                guard appStore.hotCornerEnabled != newValue else { return }
+                DispatchQueue.main.async {
+                    appStore.hotCornerEnabled = newValue
+                }
+            }
+        )
+    }
+
+    private func dockDragSideButton(for side: AppStore.DockDragSide) -> some View {
+        let isSelected = appStore.dockDragSide == side
+
+        return Button {
+            dockDragSideBinding.wrappedValue = side
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: dockDragSideSymbol(for: side))
+                    .font(.caption.weight(.semibold))
+                Text(appStore.localized(side.localizationKey))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
+                                     : Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.25 : 0.75))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func gestureTapActionButton(for action: AppStore.GestureTapAction) -> some View {
+        let isSelected = appStore.gestureTapAction == action
+
+        return Button {
+            gestureTapActionBinding.wrappedValue = action
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: gestureTapActionSymbol(for: action))
+                    .font(.caption.weight(.semibold))
+                Text(appStore.localized(action.localizationKey))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
+                                     : Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.25 : 0.75))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func dockDragSideSymbol(for side: AppStore.DockDragSide) -> String {
+        switch side {
+        case .disabled: return "nosign"
+        case .bottom: return "arrow.down.to.line"
+        case .left: return "arrow.left.to.line"
+        case .right: return "arrow.right.to.line"
+        }
+    }
+
+    private func gestureTapActionSymbol(for action: AppStore.GestureTapAction) -> String {
+        switch action {
+        case .off: return "nosign"
+        case .open: return "arrow.up.forward.app"
+        case .toggle: return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var hotCornerPreview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.28 : 0.82))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .padding(16)
+                .overlay(hotCornerPreviewHighlight.padding(16))
+        }
+        .frame(width: 118, height: 82)
+    }
+
+    private var gesturePreview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.28 : 0.82))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .padding(16)
+                .overlay(gesturePreviewHighlight.padding(16))
+        }
+        .frame(width: 118, height: 82)
+    }
+
+    @ViewBuilder
+    private var gesturePreviewHighlight: some View {
+        if !appStore.gestureEnabled && appStore.gestureTapAction == .off {
+            Image(systemName: "slash.circle")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.secondary)
+        } else {
+            GeometryReader { proxy in
+                let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                let points = [
+                    CGPoint(x: center.x - 22, y: center.y - 12),
+                    CGPoint(x: center.x + 22, y: center.y - 12),
+                    CGPoint(x: center.x - 22, y: center.y + 12),
+                    CGPoint(x: center.x + 22, y: center.y + 12)
+                ]
+
+                ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.95))
+                        .frame(width: 10, height: 10)
+                        .position(point)
+                }
+
+                if appStore.gestureEnabled {
+                    ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                        Path { path in
+                            path.move(to: point)
+                            path.addLine(to: CGPoint(
+                                x: center.x + ((point.x - center.x) * 0.42),
+                                y: center.y + ((point.y - center.y) * 0.42)
+                            ))
+                        }
+                        .stroke(Color.accentColor.opacity(0.45), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    }
+                }
+
+                Circle()
+                    .fill(Color.accentColor.opacity(appStore.gestureTapAction != .off ? 0.22 : 0.16))
+                    .frame(width: appStore.gestureTapAction != .off ? 26 : 18, height: appStore.gestureTapAction != .off ? 26 : 18)
+                    .position(center)
+
+                if appStore.gestureTapAction != .off {
+                    Circle()
+                        .stroke(Color.accentColor.opacity(0.55), lineWidth: 2)
+                        .frame(width: 34, height: 34)
+                        .position(center)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var hotCornerPreviewHighlight: some View {
+        if !appStore.hotCornerEnabled {
+            Image(systemName: "slash.circle")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.secondary)
+        } else {
+            GeometryReader { proxy in
+                let markerSize: CGFloat = 12
+                let inset: CGFloat = 4
+
+                Circle()
+                    .fill(Color.accentColor.opacity(0.95))
+                    .frame(width: markerSize, height: markerSize)
+                    .position(hotCornerPreviewPoint(in: proxy.size, inset: inset))
+            }
+        }
+    }
+
+    private func hotCornerPreviewPoint(in size: CGSize, inset: CGFloat) -> CGPoint {
+        switch appStore.hotCornerPosition {
+        case .topLeft:
+            return CGPoint(x: inset + 6, y: inset + 6)
+        case .topRight:
+            return CGPoint(x: size.width - inset - 6, y: inset + 6)
+        case .bottomLeft:
+            return CGPoint(x: inset + 6, y: size.height - inset - 6)
+        case .bottomRight:
+            return CGPoint(x: size.width - inset - 6, y: size.height - inset - 6)
+        }
+    }
+
+    private func hotCornerPositionButton(for position: AppStore.HotCornerPosition) -> some View {
+        let isSelected = appStore.hotCornerPosition == position
+
+        return Button {
+            hotCornerPositionBinding.wrappedValue = position
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: hotCornerPositionSymbol(for: position))
+                    .font(.caption.weight(.semibold))
+                Text(appStore.localized(position.localizationKey))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
+                                     : Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.25 : 0.75))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.65) : Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func hotCornerPositionSymbol(for position: AppStore.HotCornerPosition) -> String {
+        switch position {
+        case .topLeft: return "arrow.up.left"
+        case .topRight: return "arrow.up.right"
+        case .bottomLeft: return "arrow.down.left"
+        case .bottomRight: return "arrow.down.right"
         }
     }
 
@@ -3717,42 +4496,42 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(appStore.localized(.backgroundStyleTitle))
-                    .font(.headline)
-                Picker("", selection: $appStore.launchpadBackgroundStyle) {
-                    ForEach(AppStore.BackgroundStyle.allCases) { style in
-                        Text(appStore.localized(style.localizationKey)).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-
             if #available(macOS 26.0, iOS 26.0, *) {
-                let useGlass = appStore.launchpadBackgroundStyle == .glass
-                let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-
-                ZStack {
-                    Image("AboutBackground")
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fill)
-
-                    HStack(spacing: 16) {
-                        glassPreviewCard(label: "Regular", icon: "app.fill", style: .regular, useGlass: useGlass, shape: shape)
-                        glassPreviewCard(label: "Clear", icon: "app.fill", style: .clear, useGlass: useGlass, shape: shape)
-                        glassPreviewCard(label: "Identity", icon: "app.fill", style: .identity, useGlass: useGlass, shape: shape)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(appStore.localized(.backgroundStyleTitle))
+                        .font(.headline)
+                    Picker("", selection: $appStore.launchpadBackgroundStyle) {
+                        ForEach(AppStore.BackgroundStyle.allCases) { style in
+                            Text(appStore.localized(style.localizationKey)).tag(style)
+                        }
                     }
-                    .padding(20)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    let useGlass = appStore.launchpadBackgroundStyle == .glass
+                    let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
+                    ZStack {
+                        Image("AboutBackground")
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fill)
+
+                        HStack(spacing: 16) {
+                            glassPreviewCard(label: "Regular", icon: "app.fill", style: .regular, useGlass: useGlass, shape: shape)
+                            glassPreviewCard(label: "Clear", icon: "app.fill", style: .clear, useGlass: useGlass, shape: shape)
+                            glassPreviewCard(label: "Identity", icon: "app.fill", style: .identity, useGlass: useGlass, shape: shape)
+                        }
+                        .padding(20)
+                    }
+                    .frame(height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1.4)
+                    )
+                    .allowsHitTesting(false)
                 }
-                .frame(height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1.4)
-                )
-                .allowsHitTesting(false)
             }
         }
     }
@@ -4311,6 +5090,19 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                     keys.insert("autoFullscreen")
                     keys.insert("showInDock")
                     keys.insert(AppStore.uninstallToolAppPathKey)
+                    keys.insert(AppStore.dockDragSideKey)
+                    keys.insert(AppStore.dockDragTriggerDistanceKey)
+                    keys.insert(AppStore.hotCornerEnabledKey)
+                    keys.insert(AppStore.hotCornerPositionKey)
+                    keys.insert(AppStore.hotCornerTriggerDelayKey)
+                    keys.insert(AppStore.hotCornerHitboxSizeKey)
+                    keys.insert(AppStore.hotCornerToggleWhenOpenKey)
+                    // Experimental gesture backup keys. Remove these together
+                    // with the gesture feature if low-level multitouch support
+                    // is dropped later.
+                    keys.insert(AppStore.gestureEnabledKey)
+                    keys.insert(AppStore.gestureCloseOnPinchOutKey)
+                    keys.insert(AppStore.gestureTapActionKey)
                 }
                 if appearanceCheckbox.state == .on {
                     keys.insert(AppStore.sidebarIconPresetKey)
@@ -4343,6 +5135,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                     keys.insert(AppStore.pageIndicatorPerDisplayEnabledKey)
                     keys.insert(AppStore.pageIndicatorPerDisplayOverridesKey)
                     keys.insert(AppStore.dualModeAppearanceSettingsKey)
+                    keys.insert(AppStore.dockDragEnabledKey)
                     keys.insert("folderPopoverWidthFactor")
                     keys.insert("folderPopoverHeightFactor")
                     keys.insert(AppStore.hoverMagnificationKey)
@@ -4718,6 +5511,10 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 }
                 return nil
             }()
+            let availableNotesModel: MarkdownRenderModel = {
+                guard let availableNotes, !availableNotes.isEmpty else { return .empty }
+                return SimpleMarkdownParser.parse(availableNotes)
+            }()
 
             Text(appStore.localized(.checkForUpdates))
                 .font(.headline)
@@ -4744,24 +5541,32 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
             case .updateAvailable(let release):
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "party.popper.fill")
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Label(appStore.localized(.updateAvailable), systemImage: "party.popper.fill")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
-                        Text(appStore.localized(.updateAvailable))
-                            .font(.subheadline.weight(.medium))
+
+                        Text(appStore.localized(.newVersion) + " \(release.version)")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: 0)
                     }
 
-                    Text(appStore.localized(.newVersion) + " \(release.version)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    if !availableNotesModel.blocks.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Release Notes")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
 
-                    if let notes = release.notes, !notes.isEmpty {
-                        Text(linkifiedText(notes))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                            .frame(maxHeight: updateNotesPreviewMaxHeight)
-                            .clipped()
+                            ReleaseNotesMarkdownView(model: availableNotesModel, mode: .full)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.primary.opacity(0.04))
+                        )
                     }
                 }
 
@@ -4780,46 +5585,6 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 }
             }
 
-            if showUpdateNotes, let notes = availableNotes, !notes.isEmpty {
-                Text(linkifiedText(notes))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-
-            HStack(spacing: 12) {
-                updateControlButton(
-                    title: appStore.updateState == .idle
-                        ? appStore.localized(.checkForUpdatesButton)
-                        : appStore.localized(.updatesRefreshButton),
-                    systemImage: "arrow.clockwise",
-                    isPrimary: true
-                ) {
-                    appStore.checkForUpdates()
-                }
-                .disabled(appStore.updateState == .checking)
-
-                Spacer(minLength: 0)
-
-                if let release = availableRelease {
-                    updateControlButton(
-                        title: appStore.localized(.downloadUpdate),
-                        systemImage: "arrow.down.circle"
-                    ) {
-                        appStore.launchUpdater(for: release)
-                    }
-                }
-
-                if let notes = availableNotes, !notes.isEmpty {
-                    Button {
-                        showUpdateNotes.toggle()
-                    } label: {
-                        Image(systemName: showUpdateNotes ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -4827,6 +5592,63 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor))
         )
+    }
+
+    private var updatesFloatingBar: some View {
+        let floatingBarShape = Capsule(style: .continuous)
+        return HStack(spacing: 12) {
+            updateControlButton(
+                title: appStore.updateState == .idle
+                    ? appStore.localized(.checkForUpdatesButton)
+                    : appStore.localized(.updatesRefreshButton),
+                systemImage: "arrow.clockwise",
+                isPrimary: true,
+                minWidth: 136
+            ) {
+                appStore.checkForUpdates()
+            }
+            .disabled(appStore.updateState == .checking)
+
+            if let release = currentAvailableRelease {
+                updateControlButton(
+                    title: appStore.localized(.downloadUpdate),
+                    systemImage: "arrow.down.circle",
+                    minWidth: 136
+                ) {
+                    appStore.launchUpdater(for: release)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .modifier(ClearGlassBackground(shape: floatingBarShape))
+        .overlay(
+            floatingBarShape
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 8)
+    }
+
+    private struct ClearGlassBackground<S: Shape>: ViewModifier {
+        let shape: S
+
+        @ViewBuilder
+        func body(content: Content) -> some View {
+            if #available(macOS 26.0, iOS 18.0, *) {
+                content
+                    .glassEffect(.clear, in: shape)
+            } else {
+                content
+                    .background(.ultraThinMaterial, in: shape)
+            }
+        }
+    }
+
+    private var currentAvailableRelease: AppStore.UpdateRelease? {
+        if case .updateAvailable(let release) = appStore.updateState {
+            return release
+        }
+        return nil
     }
 
     private var updatesControlCard: some View {
@@ -4848,13 +5670,13 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         )
     }
 
-    private func updateControlButton(title: String, systemImage: String, isPrimary: Bool = false, action: @escaping () -> Void) -> some View {
+    private func updateControlButton(title: String, systemImage: String, isPrimary: Bool = false, minWidth: CGFloat = 160, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .frame(minWidth: 160)
+                .frame(minWidth: minWidth)
         }
         .buttonStyle(.plain)
         .background(
@@ -4866,28 +5688,6 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
                 .stroke(isPrimary ? Color.accentColor.opacity(0.6) : Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
-
-    private var updateNotesPreviewMaxHeight: CGFloat {
-        let size = NSFont.systemFontSize(for: .small)
-        return size * 1.2 * 3
-    }
-
-    private func linkifiedText(_ source: String) -> AttributedString {
-        var attributed = AttributedString(source)
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
-            return attributed
-        }
-        detector.enumerateMatches(in: source, options: [], range: NSRange(location: 0, length: (source as NSString).length)) { match, _, _ in
-            guard let match, let url = match.url,
-                  let range = Range(match.range, in: source),
-                  let attrRange = Range(range, in: attributed) else { return }
-            attributed[attrRange].link = url
-            attributed[attrRange].foregroundColor = .accentColor
-        }
-        return attributed
-    }
-
-
 
     private var updatesHero: some View {
         let statusText: String = {
